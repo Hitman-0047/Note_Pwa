@@ -1,0 +1,912 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Vault">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#0a0a0f">
+<title>Vault — Secure Notes</title>
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icons/icon-192x192.png">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --surface: #12121a;
+    --surface2: #1a1a26;
+    --border: #2a2a3d;
+    --gold: #c9a84c;
+    --gold-dim: #8a6f2e;
+    --text: #e8e4d9;
+    --text-dim: #8a8578;
+    --red: #c0392b;
+    --green: #27ae60;
+    --radius: 12px;
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+  html, body {
+    height: 100%;
+    overflow: hidden;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Mono', monospace;
+    overscroll-behavior: none;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background:
+      radial-gradient(ellipse at 20% 20%, rgba(201,168,76,0.04) 0%, transparent 50%),
+      radial-gradient(ellipse at 80% 80%, rgba(100,80,160,0.05) 0%, transparent 50%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* ===== LOCK SCREEN ===== */
+  #lockScreen {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+    background: var(--bg);
+    padding: calc(var(--safe-top) + 20px) 20px calc(var(--safe-bottom) + 20px);
+    transition: opacity 0.5s ease, transform 0.5s ease;
+  }
+
+  #lockScreen.hiding {
+    opacity: 0;
+    transform: scale(1.05);
+    pointer-events: none;
+  }
+
+  .lock-card {
+    width: 100%;
+    max-width: 380px;
+    padding: 40px 32px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    box-shadow: 0 0 60px rgba(201,168,76,0.06), 0 40px 80px rgba(0,0,0,0.5);
+    animation: fadeUp 0.6s ease;
+  }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(24px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .lock-icon {
+    width: 56px; height: 56px;
+    background: linear-gradient(135deg, var(--gold), var(--gold-dim));
+    border-radius: 14px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 24px;
+    margin-bottom: 24px;
+    box-shadow: 0 4px 20px rgba(201,168,76,0.3);
+  }
+
+  .lock-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 28px;
+    font-weight: 700;
+    margin-bottom: 4px;
+  }
+
+  .lock-sub {
+    font-size: 11px;
+    color: var(--text-dim);
+    letter-spacing: 0.1em;
+    margin-bottom: 28px;
+  }
+
+  .field-label {
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--gold-dim);
+    margin-bottom: 7px;
+  }
+
+  .field-input {
+    width: 100%;
+    padding: 13px 16px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-family: 'DM Mono', monospace;
+    font-size: 15px;
+    outline: none;
+    transition: border-color 0.2s;
+    margin-bottom: 18px;
+    -webkit-appearance: none;
+  }
+
+  .field-input:focus { border-color: var(--gold-dim); }
+  .field-input.error { border-color: var(--red); animation: shake 0.3s ease; }
+
+  @keyframes shake {
+    0%,100% { transform: translateX(0); }
+    25% { transform: translateX(-8px); }
+    75% { transform: translateX(8px); }
+  }
+
+  .btn-primary {
+    width: 100%;
+    padding: 14px;
+    background: linear-gradient(135deg, var(--gold), var(--gold-dim));
+    border: none;
+    border-radius: 8px;
+    color: #0a0a0f;
+    font-family: 'DM Mono', monospace;
+    font-size: 13px;
+    font-weight: 500;
+    letter-spacing: 0.1em;
+    cursor: pointer;
+    transition: opacity 0.2s, transform 0.15s;
+    -webkit-appearance: none;
+  }
+
+  .btn-primary:active { opacity: 0.85; transform: scale(0.98); }
+
+  .lock-toggle {
+    text-align: center;
+    margin-top: 14px;
+    font-size: 12px;
+    color: var(--text-dim);
+  }
+
+  .lock-toggle a { color: var(--gold-dim); cursor: pointer; }
+  .error-msg { font-size: 11px; color: var(--red); margin-top: -12px; margin-bottom: 14px; display: none; }
+
+  /* ===== APP SHELL ===== */
+  #app {
+    display: none;
+    height: 100%;
+    flex-direction: column;
+    position: relative;
+    z-index: 1;
+  }
+
+  /* Views */
+  .view { display: none; flex-direction: column; height: 100%; }
+  .view.active { display: flex; }
+
+  /* ===== LIST VIEW ===== */
+  .list-header {
+    padding: calc(var(--safe-top) + 16px) 16px 12px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+
+  .list-header-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+  }
+
+  .app-brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .brand-icon {
+    width: 34px; height: 34px;
+    background: linear-gradient(135deg, var(--gold), var(--gold-dim));
+    border-radius: 9px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 15px;
+    box-shadow: 0 2px 10px rgba(201,168,76,0.25);
+  }
+
+  .brand-name {
+    font-family: 'Playfair Display', serif;
+    font-size: 20px;
+    font-weight: 700;
+  }
+
+  .header-actions { display: flex; gap: 8px; }
+
+  .icon-btn {
+    width: 36px; height: 36px;
+    border-radius: 9px;
+    border: 1px solid var(--border);
+    background: var(--surface2);
+    color: var(--text-dim);
+    font-size: 16px;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.15s;
+    -webkit-appearance: none;
+  }
+
+  .icon-btn:active { opacity: 0.6; transform: scale(0.94); }
+  .icon-btn.gold { border-color: rgba(201,168,76,0.3); color: var(--gold); background: rgba(201,168,76,0.08); }
+
+  .search-wrapper {
+    position: relative;
+  }
+
+  .search-wrapper::before {
+    content: '🔍';
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 13px;
+    pointer-events: none;
+  }
+
+  .search-input {
+    width: 100%;
+    padding: 9px 12px 9px 36px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-family: 'DM Mono', monospace;
+    font-size: 13px;
+    outline: none;
+    -webkit-appearance: none;
+  }
+
+  .search-input::placeholder { color: var(--text-dim); }
+
+  .notes-scroll {
+    flex: 1;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 8px;
+    padding-bottom: calc(var(--safe-bottom) + 80px);
+  }
+
+  .notes-scroll::-webkit-scrollbar { display: none; }
+
+  .note-card {
+    padding: 14px 16px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    margin-bottom: 8px;
+    cursor: pointer;
+    transition: all 0.15s;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .note-card::before {
+    content: '';
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 3px;
+    background: linear-gradient(to bottom, var(--gold), var(--gold-dim));
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+
+  .note-card:active { transform: scale(0.98); opacity: 0.85; }
+
+  .note-card-title {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text);
+    margin-bottom: 5px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .note-card-preview {
+    font-size: 12px;
+    color: var(--text-dim);
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    line-height: 1.5;
+    margin-bottom: 8px;
+  }
+
+  .note-card-meta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .note-card-date {
+    font-size: 10px;
+    color: var(--text-dim);
+    opacity: 0.5;
+  }
+
+  .note-card-chars {
+    font-size: 10px;
+    color: var(--text-dim);
+    opacity: 0.4;
+  }
+
+  .empty-state {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--text-dim);
+  }
+
+  .empty-icon { font-size: 40px; margin-bottom: 12px; opacity: 0.3; }
+  .empty-title { font-family: 'Playfair Display', serif; font-size: 20px; opacity: 0.4; margin-bottom: 6px; }
+  .empty-sub { font-size: 12px; opacity: 0.3; }
+
+  /* FAB */
+  .fab {
+    position: fixed;
+    right: 20px;
+    bottom: calc(var(--safe-bottom) + 20px);
+    width: 56px; height: 56px;
+    background: linear-gradient(135deg, var(--gold), var(--gold-dim));
+    border-radius: 16px;
+    border: none;
+    color: #0a0a0f;
+    font-size: 26px;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 4px 20px rgba(201,168,76,0.4);
+    transition: transform 0.15s, box-shadow 0.15s;
+    z-index: 20;
+    -webkit-appearance: none;
+  }
+
+  .fab:active { transform: scale(0.92); box-shadow: 0 2px 10px rgba(201,168,76,0.3); }
+
+  /* ===== EDITOR VIEW ===== */
+  .editor-header {
+    padding: calc(var(--safe-top) + 12px) 12px 12px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+  }
+
+  .back-btn {
+    width: 36px; height: 36px;
+    border-radius: 9px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--gold);
+    font-size: 18px;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+    -webkit-appearance: none;
+  }
+
+  .back-btn:active { opacity: 0.6; }
+
+  .editor-title-input {
+    flex: 1;
+    background: none;
+    border: none;
+    outline: none;
+    font-family: 'Playfair Display', serif;
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--text);
+    min-width: 0;
+  }
+
+  .editor-title-input::placeholder { color: var(--text-dim); opacity: 0.5; }
+
+  .editor-right { display: flex; gap: 6px; flex-shrink: 0; }
+
+  .save-badge {
+    padding: 6px 10px;
+    border-radius: 6px;
+    font-size: 10px;
+    color: var(--green);
+    letter-spacing: 0.08em;
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+
+  .save-badge.show { opacity: 1; }
+
+  .editor-body {
+    flex: 1;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 20px 16px calc(var(--safe-bottom) + 80px);
+  }
+
+  .editor-body::-webkit-scrollbar { display: none; }
+
+  .note-body-input {
+    width: 100%;
+    min-height: 100%;
+    background: none;
+    border: none;
+    outline: none;
+    resize: none;
+    font-family: 'DM Mono', monospace;
+    font-size: 14px;
+    line-height: 1.85;
+    color: var(--text);
+    -webkit-appearance: none;
+  }
+
+  .note-body-input::placeholder { color: var(--text-dim); opacity: 0.35; }
+
+  .editor-toolbar-bottom {
+    position: fixed;
+    bottom: 0;
+    left: 0; right: 0;
+    padding: 10px 16px calc(var(--safe-bottom) + 10px);
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    z-index: 10;
+  }
+
+  .word-count {
+    font-size: 11px;
+    color: var(--text-dim);
+    opacity: 0.5;
+  }
+
+  .delete-btn {
+    padding: 8px 16px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text-dim);
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    cursor: pointer;
+    transition: all 0.2s;
+    letter-spacing: 0.06em;
+    -webkit-appearance: none;
+  }
+
+  .delete-btn:active { border-color: var(--red); color: var(--red); }
+
+  /* Install prompt */
+  #installBanner {
+    position: fixed;
+    bottom: calc(var(--safe-bottom) + 16px);
+    left: 16px; right: 16px;
+    background: var(--surface);
+    border: 1px solid rgba(201,168,76,0.3);
+    border-radius: 14px;
+    padding: 14px 16px;
+    display: none;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    z-index: 50;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.5);
+    animation: slideUp 0.4s ease;
+  }
+
+  @keyframes slideUp {
+    from { transform: translateY(20px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+  }
+
+  .install-text { font-size: 12px; color: var(--text); flex: 1; }
+  .install-text span { color: var(--gold); font-weight: 500; }
+
+  .install-btns { display: flex; gap: 8px; flex-shrink: 0; }
+
+  .btn-install {
+    padding: 8px 14px;
+    border-radius: 7px;
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    cursor: pointer;
+    letter-spacing: 0.06em;
+    -webkit-appearance: none;
+  }
+
+  .btn-install.confirm {
+    background: linear-gradient(135deg, var(--gold), var(--gold-dim));
+    border: none;
+    color: #0a0a0f;
+  }
+
+  .btn-install.dismiss {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+  }
+
+  /* Note count bar */
+  .list-meta {
+    padding: 6px 16px;
+    font-size: 10px;
+    color: var(--text-dim);
+    letter-spacing: 0.06em;
+    opacity: 0.5;
+    flex-shrink: 0;
+  }
+</style>
+</head>
+<body>
+
+<!-- LOCK SCREEN -->
+<div id="lockScreen">
+  <div class="lock-card">
+    <div class="lock-icon">🔐</div>
+    <div class="lock-title" id="lockTitle">Vault</div>
+    <div class="lock-sub" id="lockSub">YOUR SECURE NOTES</div>
+
+    <div id="setupMode">
+      <div class="field-label">Create Password</div>
+      <input class="field-input" type="password" id="newPass" placeholder="Enter a password" autocomplete="new-password" />
+      <div class="field-label">Confirm Password</div>
+      <input class="field-input" type="password" id="confirmPass" placeholder="Confirm password" autocomplete="new-password" />
+      <div class="error-msg" id="setupError">Passwords do not match.</div>
+      <button class="btn-primary" onclick="createPassword()">CREATE VAULT</button>
+    </div>
+
+    <div id="loginMode" style="display:none">
+      <div class="field-label">Password</div>
+      <input class="field-input" type="password" id="loginPass" placeholder="Enter your password" autocomplete="current-password" />
+      <div class="error-msg" id="loginError">Incorrect password. Try again.</div>
+      <button class="btn-primary" onclick="login()">UNLOCK VAULT</button>
+      <div class="lock-toggle">
+        <a onclick="resetVault()">Reset vault (deletes all notes)</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MAIN APP -->
+<div id="app">
+
+  <!-- LIST VIEW -->
+  <div class="view active" id="listView">
+    <div class="list-header">
+      <div class="list-header-top">
+        <div class="app-brand">
+          <div class="brand-icon">🔐</div>
+          <div class="brand-name">Vault</div>
+        </div>
+        <div class="header-actions">
+          <button class="icon-btn" onclick="lockApp()" title="Lock">🔒</button>
+        </div>
+      </div>
+      <div class="search-wrapper">
+        <input class="search-input" type="search" id="searchInput" placeholder="Search notes..." oninput="filterNotes()" autocomplete="off" />
+      </div>
+    </div>
+    <div class="list-meta" id="noteCount">0 notes</div>
+    <div class="notes-scroll" id="notesList"></div>
+    <button class="fab" onclick="newNote()">+</button>
+  </div>
+
+  <!-- EDITOR VIEW -->
+  <div class="view" id="editorView">
+    <div class="editor-header">
+      <button class="back-btn" onclick="goBack()">‹</button>
+      <input class="editor-title-input" type="text" id="noteTitleInput" placeholder="Untitled note..." oninput="onEdit()" autocomplete="off" />
+      <div class="editor-right">
+        <span class="save-badge" id="saveIndicator">✓ SAVED</span>
+        <button class="icon-btn" onclick="saveNote()">💾</button>
+        <button class="icon-btn" onclick="deleteNote()">🗑</button>
+      </div>
+    </div>
+    <div class="editor-body">
+      <textarea class="note-body-input" id="noteBodyInput" placeholder="Start writing your note..." oninput="onEdit()"></textarea>
+    </div>
+    <div class="editor-toolbar-bottom">
+      <span class="word-count" id="wordCount">0 words</span>
+      <button class="delete-btn" onclick="deleteNote()">DELETE NOTE</button>
+    </div>
+  </div>
+
+</div>
+
+<!-- Install Banner -->
+<div id="installBanner">
+  <div class="install-text">Add <span>Vault</span> to your home screen for quick access</div>
+  <div class="install-btns">
+    <button class="btn-install dismiss" onclick="dismissInstall()">Later</button>
+    <button class="btn-install confirm" onclick="installApp()">Install</button>
+  </div>
+</div>
+
+<script>
+// ===== PWA =====
+let deferredInstall = null;
+
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js').catch(() => {});
+  });
+}
+
+window.addEventListener('beforeinstallprompt', e => {
+  e.preventDefault();
+  deferredInstall = e;
+  if (!localStorage.getItem('vault_install_dismissed')) {
+    setTimeout(() => {
+      const banner = document.getElementById('installBanner');
+      banner.style.display = 'flex';
+    }, 2000);
+  }
+});
+
+function installApp() {
+  document.getElementById('installBanner').style.display = 'none';
+  if (deferredInstall) {
+    deferredInstall.prompt();
+    deferredInstall.userChoice.then(() => { deferredInstall = null; });
+  }
+}
+
+function dismissInstall() {
+  document.getElementById('installBanner').style.display = 'none';
+  localStorage.setItem('vault_install_dismissed', '1');
+}
+
+// ===== CRYPTO =====
+async function hashPassword(password) {
+  const data = new TextEncoder().encode(password);
+  const buf = await crypto.subtle.digest('SHA-256', data);
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
+}
+
+// ===== STATE =====
+let notes = [];
+let currentNoteId = null;
+let saveTimeout = null;
+
+function genId() { return Date.now().toString(36) + Math.random().toString(36).slice(2); }
+
+function formatDate(ts) {
+  const d = new Date(ts);
+  const now = new Date();
+  const diff = now - d;
+  if (diff < 60000) return 'just now';
+  if (diff < 3600000) return Math.floor(diff/60000) + 'm ago';
+  if (diff < 86400000) return Math.floor(diff/3600000) + 'h ago';
+  if (diff < 604800000) return Math.floor(diff/86400000) + 'd ago';
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+function wordCount(text) {
+  return text.trim() ? text.trim().split(/\s+/).length : 0;
+}
+
+// ===== STORAGE =====
+function saveNotes() { localStorage.setItem('vault_notes', JSON.stringify(notes)); }
+function loadNotes() {
+  const raw = localStorage.getItem('vault_notes');
+  notes = raw ? JSON.parse(raw) : [];
+}
+
+// ===== AUTH =====
+async function createPassword() {
+  const p1 = document.getElementById('newPass').value;
+  const p2 = document.getElementById('confirmPass').value;
+  const err = document.getElementById('setupError');
+  if (!p1) { document.getElementById('newPass').classList.add('error'); return; }
+  if (p1 !== p2) {
+    err.style.display = 'block';
+    document.getElementById('confirmPass').classList.add('error');
+    setTimeout(() => document.getElementById('confirmPass').classList.remove('error'), 600);
+    return;
+  }
+  localStorage.setItem('vault_pass', await hashPassword(p1));
+  enterApp();
+}
+
+async function login() {
+  const pass = document.getElementById('loginPass').value;
+  const hash = await hashPassword(pass);
+  const err = document.getElementById('loginError');
+  const input = document.getElementById('loginPass');
+  if (hash === localStorage.getItem('vault_pass')) {
+    err.style.display = 'none';
+    enterApp();
+  } else {
+    err.style.display = 'block';
+    input.classList.add('error');
+    input.value = '';
+    setTimeout(() => input.classList.remove('error'), 600);
+  }
+}
+
+function enterApp() {
+  document.getElementById('lockScreen').classList.add('hiding');
+  setTimeout(() => {
+    document.getElementById('lockScreen').style.display = 'none';
+    document.getElementById('app').style.display = 'flex';
+    loadNotes();
+    showView('listView');
+    renderNotesList();
+  }, 500);
+}
+
+function lockApp() {
+  saveCurrentNote();
+  document.getElementById('app').style.display = 'none';
+  const ls = document.getElementById('lockScreen');
+  ls.style.display = 'flex';
+  ls.classList.remove('hiding');
+  document.getElementById('loginPass').value = '';
+  currentNoteId = null;
+}
+
+function resetVault() {
+  if (confirm('This will delete ALL notes and your password. Are you sure?')) {
+    localStorage.clear();
+    location.reload();
+  }
+}
+
+// ===== VIEWS =====
+function showView(id) {
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+
+function goBack() {
+  saveCurrentNote();
+  renderNotesList();
+  showView('listView');
+  currentNoteId = null;
+}
+
+// ===== NOTES =====
+function newNote() {
+  const note = { id: genId(), title: '', body: '', createdAt: Date.now(), updatedAt: Date.now() };
+  notes.unshift(note);
+  saveNotes();
+  openNote(note.id);
+}
+
+function openNote(id) {
+  saveCurrentNote();
+  currentNoteId = id;
+  const note = notes.find(n => n.id === id);
+  if (!note) return;
+  document.getElementById('noteTitleInput').value = note.title;
+  document.getElementById('noteBodyInput').value = note.body;
+  document.getElementById('wordCount').textContent = wordCount(note.body) + ' words';
+  document.getElementById('saveIndicator').classList.remove('show');
+  showView('editorView');
+  setTimeout(() => {
+    if (!note.title) document.getElementById('noteTitleInput').focus();
+    else document.getElementById('noteBodyInput').focus();
+  }, 100);
+}
+
+function saveCurrentNote() {
+  if (!currentNoteId) return;
+  const note = notes.find(n => n.id === currentNoteId);
+  if (!note) return;
+  note.title = document.getElementById('noteTitleInput').value;
+  note.body = document.getElementById('noteBodyInput').value;
+  note.updatedAt = Date.now();
+  saveNotes();
+}
+
+function saveNote() {
+  saveCurrentNote();
+  renderNotesList();
+  const ind = document.getElementById('saveIndicator');
+  ind.classList.add('show');
+  setTimeout(() => ind.classList.remove('show'), 2000);
+}
+
+function deleteNote() {
+  if (!currentNoteId) return;
+  if (!confirm('Delete this note?')) return;
+  notes = notes.filter(n => n.id !== currentNoteId);
+  saveNotes();
+  currentNoteId = null;
+  renderNotesList();
+  showView('listView');
+}
+
+function onEdit() {
+  const body = document.getElementById('noteBodyInput').value;
+  document.getElementById('wordCount').textContent = wordCount(body) + ' words';
+  clearTimeout(saveTimeout);
+  saveTimeout = setTimeout(saveNote, 1500);
+}
+
+function renderNotesList(filter = '') {
+  const list = document.getElementById('notesList');
+  const countEl = document.getElementById('noteCount');
+  const q = filter.toLowerCase();
+
+  const filtered = notes.filter(n =>
+    n.title.toLowerCase().includes(q) || n.body.toLowerCase().includes(q)
+  );
+
+  countEl.textContent = `${filtered.length} note${filtered.length !== 1 ? 's' : ''}`;
+
+  if (filtered.length === 0) {
+    list.innerHTML = `
+      <div class="empty-state">
+        <div class="empty-icon">📓</div>
+        <div class="empty-title">${filter ? 'No results' : 'No notes yet'}</div>
+        <div class="empty-sub">${filter ? 'Try a different search' : 'Tap + to create your first note'}</div>
+      </div>`;
+    return;
+  }
+
+  list.innerHTML = filtered.map(note => `
+    <div class="note-card" onclick="openNote('${note.id}')">
+      <div class="note-card-title">${note.title || 'Untitled'}</div>
+      <div class="note-card-preview">${note.body || 'Empty note'}</div>
+      <div class="note-card-meta">
+        <span class="note-card-date">${formatDate(note.updatedAt)}</span>
+        <span class="note-card-chars">${note.body.length} chars</span>
+      </div>
+    </div>
+  `).join('');
+}
+
+function filterNotes() {
+  renderNotesList(document.getElementById('searchInput').value);
+}
+
+// ===== KEYBOARD =====
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && document.getElementById('loginMode').style.display !== 'none'
+      && document.getElementById('lockScreen').style.display !== 'none') {
+    login();
+  }
+  if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+    e.preventDefault();
+    saveNote();
+  }
+});
+
+// Handle back button on Android
+window.addEventListener('popstate', e => {
+  const editor = document.getElementById('editorView');
+  if (editor.classList.contains('active')) {
+    goBack();
+  }
+});
+
+// Push state when entering editor for back button support
+function pushEditorState() { history.pushState({ view: 'editor' }, ''); }
+
+// ===== INIT =====
+window.onload = () => {
+  const stored = localStorage.getItem('vault_pass');
+  if (stored) {
+    document.getElementById('setupMode').style.display = 'none';
+    document.getElementById('loginMode').style.display = 'block';
+    document.getElementById('lockSub').textContent = 'ENTER YOUR PASSWORD';
+    document.getElementById('loginPass').focus();
+  } else {
+    document.getElementById('newPass').focus();
+  }
+};
+</script>
+</body>
+</html>
